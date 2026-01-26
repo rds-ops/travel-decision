@@ -23,6 +23,10 @@ from app.models.enums import (
 )
 
 
+def enum_values(enum_cls):
+    return [e.value for e in enum_cls]
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -44,7 +48,10 @@ class UserProfile(Base):
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     language = Column(String(50))
     travel_style = Column(String(120))
-    budget_tier = Column(Enum(BudgetTier), default=BudgetTier.mid)
+    budget_tier = Column(
+        Enum(BudgetTier, values_callable=enum_values),
+        default=BudgetTier.mid,
+    )
     cities_of_experience = Column(JSON, default=list)
 
     user = relationship("User", back_populates="profile")
@@ -75,10 +82,16 @@ class Question(Base):
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
     author_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     duration = Column(String(50), nullable=False)
-    budget_tier = Column(Enum(BudgetTier), nullable=False)
+    budget_tier = Column(
+        Enum(BudgetTier, values_callable=enum_values),
+        nullable=False,
+    )
     requirements = Column(JSON, default=list)
     question_text = Column(Text, nullable=False)
-    status = Column(Enum(QuestionStatus), default=QuestionStatus.open)
+    status = Column(
+        Enum(QuestionStatus, values_callable=enum_values),
+        default=QuestionStatus.open,
+    )
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     author = relationship("User", back_populates="questions")
@@ -107,9 +120,15 @@ class Reaction(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    entity_type = Column(Enum(EntityType), nullable=False)
+    entity_type = Column(
+        Enum(EntityType, values_callable=enum_values),
+        nullable=False,
+    )
     entity_id = Column(Integer, nullable=False)
-    reaction_type = Column(Enum(ReactionType), nullable=False)
+    reaction_type = Column(
+        Enum(ReactionType, values_callable=enum_values),
+        nullable=False,
+    )
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     user = relationship("User", back_populates="reactions")
@@ -120,10 +139,16 @@ class Report(Base):
 
     id = Column(Integer, primary_key=True)
     reporter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    entity_type = Column(Enum(EntityType), nullable=False)
+    entity_type = Column(
+        Enum(EntityType, values_callable=enum_values),
+        nullable=False,
+    )
     entity_id = Column(Integer, nullable=False)
     reason = Column(String(255), nullable=False)
-    status = Column(Enum(ReportStatus), default=ReportStatus.open)
+    status = Column(
+        Enum(ReportStatus, values_callable=enum_values),
+        default=ReportStatus.open,
+    )
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
@@ -135,14 +160,20 @@ class Card(Base):
     city_id = Column(Integer, ForeignKey("cities.id"), nullable=False)
     topic_id = Column(Integer, ForeignKey("topics.id"), nullable=False)
     duration = Column(String(50), nullable=False)
-    budget_tier = Column(Enum(BudgetTier), nullable=False)
+    budget_tier = Column(
+        Enum(BudgetTier, values_callable=enum_values),
+        nullable=False,
+    )
     requirements = Column(JSON, default=list)
     season = Column(String(50))
     summary = Column(Text, nullable=False)
     recommendations = Column(JSON, default=list)
     risks = Column(JSON, default=list)
     fit_for = Column(JSON, default=list)
-    status = Column(Enum(CardStatus), default=CardStatus.draft)
+    status = Column(
+        Enum(CardStatus, values_callable=enum_values),
+        default=CardStatus.draft,
+    )
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     city = relationship("City", back_populates="cards")

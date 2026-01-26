@@ -2,7 +2,6 @@ import { GetServerSideProps } from "next";
 import Link from "next/link";
 
 import Layout from "../components/Layout";
-import { API_URL } from "../lib/api";
 
 interface City {
   id: number;
@@ -26,8 +25,10 @@ export default function Home({ cities }: HomeProps) {
             Ask questions, read real experiences, and find scenario cards curated by moderators.
           </p>
         </div>
+
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-base font-semibold text-ink">Quick scenario search</h2>
+
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <div>
               <label className="text-xs text-slate-500">City</label>
@@ -39,6 +40,7 @@ export default function Home({ cities }: HomeProps) {
                 ))}
               </select>
             </div>
+
             <div>
               <label className="text-xs text-slate-500">Duration</label>
               <select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm">
@@ -47,6 +49,7 @@ export default function Home({ cities }: HomeProps) {
                 <option>3 months</option>
               </select>
             </div>
+
             <div>
               <label className="text-xs text-slate-500">Budget</label>
               <select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm">
@@ -55,6 +58,7 @@ export default function Home({ cities }: HomeProps) {
                 <option>high</option>
               </select>
             </div>
+
             <div>
               <label className="text-xs text-slate-500">Requirements</label>
               <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
@@ -66,6 +70,7 @@ export default function Home({ cities }: HomeProps) {
               </div>
             </div>
           </div>
+
           <div className="mt-4">
             <Link
               href="/search"
@@ -75,6 +80,7 @@ export default function Home({ cities }: HomeProps) {
             </Link>
           </div>
         </div>
+
         <div className="grid gap-4 md:grid-cols-2">
           {cities.map((city) => (
             <Link
@@ -96,7 +102,17 @@ export default function Home({ cities }: HomeProps) {
 }
 
 export const getServerSideProps: GetServerSideProps = async () => {
-  const res = await fetch(`${API_URL}/cities`);
+  // SSR выполняется внутри контейнера Next.js, поэтому localhost тут НЕ бэкенд.
+  const apiUrl =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://backend:8000";
+
+  const res = await fetch(`${apiUrl}/cities`);
+  if (!res.ok) {
+    return { props: { cities: [] } };
+  }
+
   const cities = await res.json();
   return { props: { cities } };
 };
