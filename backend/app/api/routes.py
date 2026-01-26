@@ -1,0 +1,484 @@
+import logging
+import random
+from datetime import datetime, timedelta
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+
+from app.api.deps import get_admin_user, get_current_user, get_db
+from app.core.config import settings
+from app.core.security import create_access_token
+from app.models.enums import (
+    BudgetTier,
+    CardStatus,
+    EntityType,
+    QuestionStatus,
+    ReactionType,
+    ReportStatus,
+)
+from app.models.models import (
+    Answer,
+    Card,
+    CardSource,
+    City,
+    OtpCode,
+    Question,
+    Reaction,
+    Report,
+    Topic,
+    User,
+    UserProfile,
+)
+from app.schemas.common import AnswerBase, CardBase, CityBase, QuestionBase, TopicBase
+from app.schemas.requests import (
+    AnswerCreate,
+    CardUpdate,
+    OtpRequest,
+    OtpVerify,
+    ProfileUpdate,
+    QuestionCreate,
+    ReactionCreate,
+    ReportCreate,
+)
+
+logger = logging.getLogger("travel_decision")
+
+router = APIRouter()
+
+
+@router.get("/health")
+def health_check():
+    return {"status": "ok"}
+
+
+@router.post("/auth/request-otp")
+def request_otp(payload: OtpRequest, db: Session = Depends(get_db)):
+    code = "".join(str(random.randint(0, 9)) for _ in range(6))
+    expires_at = datetime.utcnow() + timedelta(minutes=settings.otp_expire_minutes)
+    db.add(OtpCode(email=payload.email, code=code, expires_at=expires_at))
+    db.commit()
+    logger.info("OTP requested for %s", payload.email)
+    return {"message": "OTP created", "code": code}
+
+
+@router.post("/auth/verify-otp")
+def verify_otp(payload: OtpVerify, db: Session = Depends(get_db)):
+    otp = (
+        db.query(OtpCode)
+        .filter(OtpCode.email == payload.email, OtpCode.code == payload.code)
+        .order_by(OtpCode.created_at.desc())
+        .first()
+    )
+    if not otp or otp.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid OTP")
+    user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        user = User(email=payload.email)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+    if not profile:
+        db.add(UserProfile(user_id=user.id, cities_of_experience=[]))
+        db.commit()
+    token = create_access_token(user.email)
+    logger.info("User verified OTP %s", user.email)
+    return {"access_token": token, "token_type": "bearer", "user_id": user.id}
+
+
+@router.get("/cities", response_model=List[CityBase])
+def list_cities(db: Session = Depends(get_db)):
+    return db.query(City).order_by(City.name.asc()).all()
+
+
+@router.get("/topics", response_model=List[TopicBase])
+def list_topics(db: Session = Depends(get_db)):
+    return db.query(Topic).order_by(Topic.name.asc()).all()
+
+
+@router.post("/questions", response_model=QuestionBase)
+def create_question(
+    payload: QuestionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    recent_cutoff = datetime.utcnow() - timedelta(hours=24)
+    recent_count = (
+        db.query(Question)
+        .filter(Question.author_id == current_user.id, Question.created_at >= recent_cutoff)
+        .count()
+    )
+    if recent_count >= 3:
+        raise HTTPException(status_code=429, detail="Daily question limit reached")
+    question = Question(
+        city_id=payload.city_id,
+        topic_id=payload.topic_id,
+        author_id=current_user.id,
+        duration=payload.duration,
+        budget_tier=BudgetTier(payload.budget_tier),
+        requirements=payload.requirements,
+        question_text=payload.question_text,
+    )
+    db.add(question)
+    db.commit()
+    db.refresh(question)
+    logger.info("Question created %s by %s", question.id, current_user.email)
+    return question
+
+
+@router.get("/questions", response_model=List[QuestionBase])
+def list_questions(
+    city_id: Optional[int] = None,
+    topic_id: Optional[int] = None,
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Question)
+    if city_id:
+        query = query.filter(Question.city_id == city_id)
+    if topic_id:
+        query = query.filter(Question.topic_id == topic_id)
+    if status_filter:
+        query = query.filter(Question.status == QuestionStatus(status_filter))
+    return query.order_by(Question.created_at.desc()).all()
+
+
+@router.get("/questions/{question_id}")
+def get_question(question_id: int, db: Session = Depends(get_db)):
+    question = db.query(Question).filter(Question.id == question_id).first()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    answers = db.query(Answer).filter(Answer.question_id == question_id).all()
+    answer_ids = [answer.id for answer in answers]
+    reactions = []
+    if answer_ids:
+        reactions = (
+            db.query(Reaction)
+            .filter(Reaction.entity_type == EntityType.answer, Reaction.entity_id.in_(answer_ids))
+            .all()
+        )
+    help_map = {reaction.entity_id for reaction in reactions if reaction.reaction_type == ReactionType.helped}
+    save_counts = {}
+    for reaction in reactions:
+        if reaction.reaction_type == ReactionType.saved:
+            save_counts[reaction.entity_id] = save_counts.get(reaction.entity_id, 0) + 1
+    contributor_helped_counts = {
+        answer.user_id: db.query(Reaction)
+        .join(Answer, Reaction.entity_id == Answer.id)
+        .filter(Reaction.reaction_type == ReactionType.helped, Answer.user_id == answer.user_id)
+        .count()
+        for answer in answers
+    }
+    answers_sorted = sorted(
+        answers,
+        key=lambda answer: (
+            0 if answer.id in help_map else 1,
+            -save_counts.get(answer.id, 0),
+            -contributor_helped_counts.get(answer.user_id, 0),
+            answer.created_at,
+        ),
+    )
+    return {
+        "question": QuestionBase.model_validate(question),
+        "answers": [AnswerBase.model_validate(answer) for answer in answers_sorted],
+    }
+
+
+@router.post("/answers", response_model=AnswerBase)
+def create_answer(
+    payload: AnswerCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    question = db.query(Question).filter(Question.id == payload.question_id).first()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    answer = Answer(
+        question_id=payload.question_id,
+        user_id=current_user.id,
+        answer_text=payload.answer_text,
+        context=payload.context or {},
+        media_url=payload.media_url,
+    )
+    db.add(answer)
+    db.commit()
+    db.refresh(answer)
+    logger.info("Answer created %s on question %s", answer.id, question.id)
+    return answer
+
+
+@router.post("/reactions")
+def create_reaction(
+    payload: ReactionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if payload.reaction_type == ReactionType.helped.value:
+        if payload.entity_type != EntityType.answer.value:
+            raise HTTPException(status_code=400, detail="Helped only for answers")
+        answer = db.query(Answer).filter(Answer.id == payload.entity_id).first()
+        if not answer:
+            raise HTTPException(status_code=404, detail="Answer not found")
+        question = db.query(Question).filter(Question.id == answer.question_id).first()
+        if question.author_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Only question author can mark helped")
+    if payload.reaction_type == ReactionType.saved.value:
+        if payload.entity_type not in {EntityType.answer.value, EntityType.card.value}:
+            raise HTTPException(status_code=400, detail="Save only for answers and cards")
+    reaction = Reaction(
+        user_id=current_user.id,
+        entity_type=EntityType(payload.entity_type),
+        entity_id=payload.entity_id,
+        reaction_type=ReactionType(payload.reaction_type),
+    )
+    db.add(reaction)
+    db.commit()
+    logger.info("Reaction %s created on %s %s", payload.reaction_type, payload.entity_type, payload.entity_id)
+    return {"status": "ok"}
+
+
+@router.post("/reports")
+def create_report(
+    payload: ReportCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    report = Report(
+        reporter_id=current_user.id,
+        entity_type=EntityType(payload.entity_type),
+        entity_id=payload.entity_id,
+        reason=payload.reason,
+    )
+    db.add(report)
+    db.commit()
+    logger.info("Report created on %s %s", payload.entity_type, payload.entity_id)
+    return {"status": "queued"}
+
+
+def _generate_card_from_question(question: Question, answers: List[Answer]) -> dict:
+    title = f"{question.city.name} — {question.topic.name} for {question.duration}"
+    summary = (
+        f"For a {question.duration} stay in {question.city.name}, locals recommend balancing {question.topic.name.lower()} "
+        f"with your {question.budget_tier.value} budget tier."
+    )
+    recommendations = [
+        "Pick a neighborhood close to daily amenities and reliable transit.",
+        "Test internet speeds within the first week and have a backup option.",
+        "Budget a 10-15% buffer for unexpected fees.",
+    ]
+    risks = ["Seasonal price spikes can impact your budget.", "Short-term rental rules change quickly."]
+    fit_for = ["Remote workers", "Slow travel couples"]
+    if answers:
+        recommendations.append(f"Based on community answers, {answers[0].answer_text[:80]}...")
+    return {
+        "title": title,
+        "summary": summary,
+        "recommendations": recommendations,
+        "risks": risks,
+        "fit_for": fit_for,
+    }
+
+
+@router.post("/questions/{question_id}/generate-summary", response_model=CardBase)
+def generate_summary(
+    question_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    question = db.query(Question).filter(Question.id == question_id).first()
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    if question.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only author can generate summary")
+    answers = db.query(Answer).filter(Answer.question_id == question_id).limit(3).all()
+    template = _generate_card_from_question(question, answers)
+    card = Card(
+        title=template["title"],
+        city_id=question.city_id,
+        topic_id=question.topic_id,
+        duration=question.duration,
+        budget_tier=question.budget_tier,
+        requirements=question.requirements,
+        summary=template["summary"],
+        recommendations=template["recommendations"],
+        risks=template["risks"],
+        fit_for=template["fit_for"],
+        status=CardStatus.draft,
+        updated_at=datetime.utcnow(),
+    )
+    db.add(card)
+    db.commit()
+    db.refresh(card)
+    for answer in answers:
+        db.add(CardSource(card_id=card.id, answer_id=answer.id))
+    question.status = QuestionStatus.compiling
+    db.commit()
+    logger.info("Card draft generated %s for question %s", card.id, question.id)
+    return card
+
+
+@router.get("/cards", response_model=List[CardBase])
+def list_cards(
+    city_id: Optional[int] = None,
+    topic_id: Optional[int] = None,
+    budget_tier: Optional[str] = None,
+    requirements: Optional[str] = None,
+    include_drafts: bool = False,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Card)
+    if not include_drafts:
+        query = query.filter(Card.status == CardStatus.published)
+    if city_id:
+        query = query.filter(Card.city_id == city_id)
+    if topic_id:
+        query = query.filter(Card.topic_id == topic_id)
+    if budget_tier:
+        query = query.filter(Card.budget_tier == BudgetTier(budget_tier))
+    if requirements:
+        req_list = [req.strip() for req in requirements.split(",") if req.strip()]
+        if req_list:
+            query = query.filter(Card.requirements.contains(req_list))
+    return query.order_by(Card.updated_at.desc()).all()
+
+
+@router.get("/cards/{card_id}", response_model=CardBase)
+def get_card(card_id: int, db: Session = Depends(get_db)):
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    if card.status != CardStatus.published:
+        raise HTTPException(status_code=403, detail="Card not published")
+    return card
+
+
+@router.put("/cards/{card_id}", response_model=CardBase)
+def update_card(
+    card_id: int,
+    payload: CardUpdate,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_admin_user),
+):
+    card = db.query(Card).filter(Card.id == card_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(card, key, value)
+    card.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(card)
+    logger.info("Card updated %s", card.id)
+    return card
+
+
+@router.get("/search/cards", response_model=List[CardBase])
+def search_cards(
+    city_id: Optional[int] = None,
+    topic_id: Optional[int] = None,
+    budget_tier: Optional[str] = None,
+    requirements: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    return list_cards(city_id, topic_id, budget_tier, requirements, False, db)
+
+
+@router.get("/profile/me")
+def get_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    helped_count = (
+        db.query(Reaction)
+        .join(Answer, Reaction.entity_id == Answer.id)
+        .filter(Reaction.reaction_type == ReactionType.helped, Answer.user_id == current_user.id)
+        .count()
+    )
+    cards_used = (
+        db.query(CardSource)
+        .join(Answer, CardSource.answer_id == Answer.id)
+        .filter(Answer.user_id == current_user.id)
+        .count()
+    )
+    saves_count = (
+        db.query(Reaction)
+        .join(Answer, Reaction.entity_id == Answer.id)
+        .filter(Reaction.reaction_type == ReactionType.saved, Answer.user_id == current_user.id)
+        .count()
+    )
+    saved_cards = (
+        db.query(Reaction)
+        .filter(Reaction.reaction_type == ReactionType.saved, Reaction.entity_type == EntityType.card)
+        .all()
+    )
+    questions = db.query(Question).filter(Question.author_id == current_user.id).all()
+    answers = db.query(Answer).filter(Answer.user_id == current_user.id).all()
+    return {
+        "profile": profile,
+        "stats": {
+            "helped_answers": helped_count,
+            "cards_used": cards_used,
+            "answer_saves": saves_count,
+        },
+        "saved_cards": saved_cards,
+        "questions": questions,
+        "answers": answers,
+    }
+
+
+@router.put("/profile/me")
+def update_profile(
+    payload: ProfileUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=current_user.id, cities_of_experience=[])
+        db.add(profile)
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(profile, key, value)
+    db.commit()
+    logger.info("Profile updated %s", current_user.id)
+    return {"status": "ok"}
+
+
+@router.get("/admin/reports")
+def list_reports(db: Session = Depends(get_db), _: User = Depends(get_admin_user)):
+    return db.query(Report).order_by(Report.created_at.desc()).all()
+
+
+@router.put("/admin/reports/{report_id}")
+def update_report(
+    report_id: int,
+    status_update: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_admin_user),
+):
+    report = db.query(Report).filter(Report.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report.status = ReportStatus(status_update)
+    db.commit()
+    logger.info("Report %s updated to %s", report.id, status_update)
+    return {"status": "ok"}
+
+
+@router.get("/admin/questions")
+def admin_questions(
+    status_filter: Optional[str] = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_admin_user),
+):
+    return list_questions(None, None, status_filter, db)
+
+
+@router.get("/admin/cards/drafts", response_model=List[CardBase])
+def admin_card_drafts(
+    db: Session = Depends(get_db),
+    _: User = Depends(get_admin_user),
+):
+    return db.query(Card).filter(Card.status == CardStatus.draft).all()
