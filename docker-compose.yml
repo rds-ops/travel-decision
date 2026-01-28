@@ -14,6 +14,7 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
+    restart: unless-stopped
 
   backend:
     build: ./backend
@@ -27,11 +28,13 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
     command: >
       bash -c "
       alembic upgrade head &&
       python seed.py &&
-      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
       "
     restart: unless-stopped
 
@@ -47,6 +50,10 @@ services:
         condition: service_started
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
     restart: unless-stopped
 
 volumes:

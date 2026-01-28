@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 
 import CardItem from "../components/CardItem";
 import Layout from "../components/Layout";
-import { API_URL } from "../lib/api";
+import { fetcher } from "../lib/api";
 
 interface Card {
   id: number;
@@ -122,20 +122,19 @@ export default function Search({ cards, cities, topics }: SearchProps) {
 
 export const getServerSideProps: GetServerSideProps = async ({ query }) => {
   const params = new URLSearchParams();
-  if (query.city_id) params.set("city_id", query.city_id.toString());
-  if (query.topic_id) params.set("topic_id", query.topic_id.toString());
-  if (query.budget_tier) params.set("budget_tier", query.budget_tier.toString());
-  if (query.requirements) params.set("requirements", query.requirements.toString());
+  const keys = ["city_id", "topic_id", "budget_tier", "requirements"];
 
-  const [cardsRes, citiesRes, topicsRes] = await Promise.all([
-    fetch(`${API_URL}/search/cards?${params.toString()}`),
-    fetch(`${API_URL}/cities`),
-    fetch(`${API_URL}/topics`)
-  ]);
+  keys.forEach(key => {
+    const value = query[key];
+    if (value && value !== "") {
+      params.set(key, value.toString());
+    }
+  });
+
   const [cards, cities, topics] = await Promise.all([
-    cardsRes.json(),
-    citiesRes.json(),
-    topicsRes.json()
+    fetcher<Card[]>(`/search/cards?${params.toString()}`),
+    fetcher<City[]>("/cities"),
+    fetcher<Topic[]>("/topics")
   ]);
   return { props: { cards, cities, topics } };
 };

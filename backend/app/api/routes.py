@@ -335,11 +335,14 @@ def list_cards(
     if topic_id:
         query = query.filter(Card.topic_id == topic_id)
     if budget_tier:
-        query = query.filter(Card.budget_tier == BudgetTier(budget_tier))
+        try:
+            query = query.filter(Card.budget_tier == BudgetTier(budget_tier))
+        except ValueError:
+            logger.warning("Invalid budget_tier: %s", budget_tier)
     if requirements:
         req_list = [req.strip() for req in requirements.split(",") if req.strip()]
-        if req_list:
-            query = query.filter(Card.requirements.contains(req_list))
+        for req in req_list:
+            query = query.filter(Card.requirements.contains(req))
     return query.order_by(Card.updated_at.desc()).all()
 
 
@@ -375,13 +378,24 @@ def update_card(
 
 @router.get("/search/cards", response_model=List[CardBase])
 def search_cards(
-    city_id: Optional[int] = None,
-    topic_id: Optional[int] = None,
+    city_id: Optional[str] = None,
+    topic_id: Optional[str] = None,
     budget_tier: Optional[str] = None,
     requirements: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
-    return list_cards(city_id, topic_id, budget_tier, requirements, False, db)
+    # Convert string IDs to integers only if they are numeric
+    c_id = int(city_id) if city_id and city_id.isdigit() else None
+    t_id = int(topic_id) if topic_id and topic_id.isdigit() else None
+    
+    return list_cards(
+        city_id=c_id,
+        topic_id=t_id,
+        budget_tier=budget_tier,
+        requirements=requirements,
+        include_drafts=False,
+        db=db
+    )
 
 
 @router.get("/profile/me")
