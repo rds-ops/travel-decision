@@ -1,118 +1,107 @@
 import { GetServerSideProps } from "next";
 import Link from "next/link";
-
 import Layout from "../components/Layout";
 
-interface City {
+type FeedItem = {
   id: number;
-  name: string;
-  country: string;
-}
+  title: string;
+  created_at: string | null;
+  last_message_at: string | null;
+  author: { id: number; display_name: string };
+};
 
-interface HomeProps {
-  cities: City[];
-}
+type FeedProps = {
+  items: FeedItem[];
+  error?: string | null;
+};
 
-export default function Home({ cities }: HomeProps) {
+export default function Home({ items, error }: FeedProps) {
   return (
     <Layout>
       <section className="space-y-6">
         <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-ink">
-            Decide where to live for your next 1–3 month stay
-          </h1>
-          <p className="text-sm text-slate-600">
-            Ask questions, read real experiences, and find scenario cards curated by moderators.
-          </p>
+          <h1 className="text-2xl font-semibold text-ink">Feed</h1>
+          <p className="text-sm text-slate-600">Latest public threads and discussions.</p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-base font-semibold text-ink">Quick scenario search</h2>
-
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div>
-              <label className="text-xs text-slate-500">City</label>
-              <select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm">
-                {cities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-500">Duration</label>
-              <select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm">
-                <option>1 month</option>
-                <option>2 months</option>
-                <option>3 months</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-500">Budget</label>
-              <select className="mt-1 w-full rounded-lg border border-slate-200 p-2 text-sm">
-                <option>low</option>
-                <option>mid</option>
-                <option>high</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs text-slate-500">Requirements</label>
-              <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
-                {["quiet", "safe", "good_internet", "central", "family_friendly"].map((req) => (
-                  <span key={req} className="rounded-full border border-slate-200 px-2 py-1">
-                    {req}
-                  </span>
-                ))}
-              </div>
-            </div>
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            Feed error: {error}
           </div>
+        ) : null}
 
-          <div className="mt-4">
-            <Link
-              href="/search"
-              className="inline-flex items-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
-            >
-              Explore cards
-            </Link>
-          </div>
+        <div className="space-y-3">
+  <form
+  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+  method="post"
+  action="/api/create-thread"
+>
+  <div className="text-sm font-semibold text-ink">Create a thread</div>
+
+  <textarea
+    name="question_text"
+    className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-sm"
+    rows={3}
+    placeholder="Example: Where should I stay for a 2-month remote work stint?"
+    required
+  />
+
+  <button
+    type="submit"
+    className="mt-3 inline-flex items-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
+  >
+    Post
+  </button>
+</form>
+
+
+  {items.map((t) => (
+    <Link
+      key={t.id}
+      href={`/questions/${t.id}`}
+      className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-base font-semibold text-ink">{t.title}</div>
+          <div className="mt-1 text-xs text-slate-500">by {t.author.display_name}</div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {cities.map((city) => (
-            <Link
-              key={city.id}
-              href={`/cities/${city.id}`}
-              className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-            >
-              <h3 className="text-base font-semibold text-ink">{city.name}</h3>
-              <p className="text-xs text-slate-500">{city.country}</p>
-              <p className="mt-2 text-sm text-slate-600">
-                Explore curated topics for 1–3 month stays.
-              </p>
-            </Link>
-          ))}
+        <div className="shrink-0 text-right text-xs text-slate-500">
+          <div>Last: {t.last_message_at ? new Date(t.last_message_at).toLocaleString() : "—"}</div>
         </div>
+      </div>
+    </Link>
+  ))}
+
+  {!error && items.length === 0 ? (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
+      Пока пусто. Создай первый тред сверху.
+    </div>
+  ) : null}
+</div>
+
       </section>
     </Layout>
   );
 }
 
 export const getServerSideProps: GetServerSideProps = async () => {
-  // SSR выполняется внутри контейнера Next.js, поэтому localhost тут НЕ бэкенд.
+  // SSR внутри Next: если ты запускаешь Next локально (npm run dev), то API = localhost:8000
+  // Если Next внутри docker, то API_URL из docker-compose будет http://backend:8000
   const apiUrl =
     process.env.API_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
-    "http://backend:8000";
+    "http://localhost:8000";
 
-  const res = await fetch(`${apiUrl}/cities`);
-  if (!res.ok) {
-    return { props: { cities: [] } };
+  try {
+    const res = await fetch(`${apiUrl}/feed`);
+    if (!res.ok) {
+      return { props: { items: [], error: `API error: ${res.status}` } };
+    }
+    const data = await res.json();
+    return { props: { items: data.items ?? [], error: null } };
+  } catch (e: any) {
+    return { props: { items: [], error: e?.message || "fetch failed" } };
   }
-
-  const cities = await res.json();
-  return { props: { cities } };
 };

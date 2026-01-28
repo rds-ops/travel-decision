@@ -5,6 +5,7 @@ from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.api.deps import get_admin_user, get_current_user, get_db
 from app.core.config import settings
@@ -51,6 +52,103 @@ router = APIRouter()
 def health_check():
     return {"status": "ok"}
 
+@router.get("/feed")
+def get_feed(limit: int = 20, offset: int = 0, db: Session = Depends(get_db)):
+    # Берем вопросы (это наши треды) + дату последнего ответа (как last_message_at)
+    last_answer_sq = (
+        db.query(
+            Answer.question_id.label("question_id"),
+            func.max(Answer.created_at).label("last_message_at"),
+        )
+        .group_by(Answer.question_id)
+        .subquery()
+    )
+
+    rows = (
+        db.query(
+            Question.id,
+            Question.question_text,
+            Question.created_at,
+            User.id.label("author_id"),
+            User.email.label("author_name"),
+            last_answer_sq.c.last_message_at,
+        )
+        .join(User, User.id == Question.author_id)
+        .outerjoin(last_answer_sq, last_answer_sq.c.question_id == Question.id)
+        .order_by(func.coalesce(last_answer_sq.c.last_message_at, Question.created_at).desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    items = []
+    for r in rows:
+        text = r.question_text or ""
+        items.append(
+            {
+                "id": r.id,
+                "title": text[:80] + ("…" if len(text) > 80 else ""),
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "last_message_at": r.last_message_at.isoformat() if r.last_message_at else None,
+                "author": {"id": r.author_id, "display_name": r.author_name},
+            }
+        )
+
+    return {"items": items}
+
+
+@router.post("/feed")
+def create_feed_thread(payload: dict, db: Session = Depends(get_db)):
+    """
+    MVP: создаем публичный тред без авторизации.
+    Чтобы не заморачиваться с OTP на фронте.
+    """
+    text = (payload.get("question_text") or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="question_text is required")
+
+    # 1) гарантируем что есть юзер "member@travel.dev"
+    user = db.query(User).filter(User.email == "member@travel.dev").first()
+    if not user:
+        user = User(email="member@travel.dev")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        if not db.query(UserProfile).filter(UserProfile.user_id == user.id).first():
+            db.add(UserProfile(user_id=user.id, cities_of_experience=[]))
+            db.commit()
+
+    # 2) гарантируем что есть city + topic для MVP
+    city = db.query(City).first()
+    if not city:
+        city = City(name="Tashkent", country="Uzbekistan")
+        db.add(city)
+        db.commit()
+        db.refresh(city)
+
+    topic = db.query(Topic).first()
+    if not topic:
+        topic = Topic(name="Remote work")
+        db.add(topic)
+        db.commit()
+        db.refresh(topic)
+
+    q = Question(
+        city_id=city.id,
+        topic_id=topic.id,
+        author_id=user.id,
+        duration="2 months",
+        budget_tier=BudgetTier.mid,
+        requirements=[],
+        question_text=text,
+        status=QuestionStatus.open,
+        created_at=datetime.utcnow(),
+    )
+    db.add(q)
+    db.commit()
+    db.refresh(q)
+
+    return {"id": q.id}
 
 @router.post("/auth/request-otp")
 def request_otp(payload: OtpRequest, db: Session = Depends(get_db)):

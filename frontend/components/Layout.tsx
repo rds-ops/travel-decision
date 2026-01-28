@@ -9,13 +9,16 @@ export default function Layout({ children }: { children: ReactNode }) {
           <Link href="/" className="text-lg font-semibold text-ink">
             Travel Decision
           </Link>
+
           <nav className="flex gap-4 text-sm text-slate-600">
+            <Link href="/">Home</Link>
             <Link href="/search">Search</Link>
+            <Link href="/messages">Messages</Link>
             <Link href="/profile">Profile</Link>
-            <Link href="/admin">Admin</Link>
           </nav>
         </div>
       </header>
+
       <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
     </div>
   );
