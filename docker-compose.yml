@@ -30,6 +30,11 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     command: >
       bash -c "
       alembic upgrade head &&
@@ -47,7 +52,7 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:8000
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "3000:3000"
     volumes:

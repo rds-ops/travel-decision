@@ -27,3 +27,8 @@ def read_root():
         "docs_url": "/docs",
         "status": "online"
     }
+
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}

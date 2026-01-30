@@ -7,10 +7,29 @@ Mobile-first MVP for relocation / long stays (1–3 months). The flow is Q&A →
 - Frontend: Next.js + TypeScript + Tailwind
 - Database: PostgreSQL
 
-## Local setup (Docker)
+## Local setup (Docker + Local Frontend)
 
+## Local setup
+
+The easiest way to start on Windows:
+1. Double-click **`run.bat`** (or run `./run.bat` in terminal).
+2. Alternatively, run `./start.ps1` (may require `Set-ExecutionPolicy`).
+
+This script is intelligent:
+1. **With Docker**: If Docker Desktop is running, it starts PostgreSQL and the Backend inside Docker.
+2. **Without Docker**: If Docker is NOT running, it sets up a local Python virtual environment and uses **SQLite** for the database.
+3. In both cases, it installs frontend dependencies and starts the Frontend locally.
+
+### 1. Backend & DB (Docker)
 ```bash
-docker compose up --build
+docker compose up -d db backend
+```
+
+### 2. Frontend (Local)
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 Services:
