@@ -185,6 +185,31 @@ def verify_otp(payload: OtpVerify, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer", "user_id": user.id}
 
 
+from fastapi.security import OAuth2PasswordRequestForm
+
+@router.post("/auth/login")
+def login_simple(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    """
+    Simplified login for Swagger UI: get bearer token by email (username field).
+    """
+    email = form_data.username  # OAuth2 form uses 'username' field
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == user.id).first()
+    if not profile:
+        db.add(UserProfile(user_id=user.id, cities_of_experience=[]))
+        db.commit()
+
+    token = create_access_token(user.email)
+    logger.info("User logged in via simple auth: %s", user.email)
+    return {"access_token": token, "token_type": "bearer"}
+
+
 @router.get("/cities", response_model=List[CityBase])
 def list_cities(db: Session = Depends(get_db)):
     return db.query(City).order_by(City.name.asc()).all()
@@ -287,14 +312,27 @@ def get_question(question_id: int, db: Session = Depends(get_db)):
 def create_answer(
     payload: AnswerCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    # current_user is removed to allow unauthenticated access
 ):
+    # Resolve user
+    email = payload.email or "member@travel.dev"
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        user = User(email=email)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        # Ensure profile exists
+        if not db.query(UserProfile).filter(UserProfile.user_id == user.id).first():
+            db.add(UserProfile(user_id=user.id, cities_of_experience=[]))
+            db.commit()
+
     question = db.query(Question).filter(Question.id == payload.question_id).first()
     if not question:
         raise HTTPException(status_code=404, detail="Question not found")
     answer = Answer(
         question_id=payload.question_id,
-        user_id=current_user.id,
+        user_id=user.id,
         answer_text=payload.answer_text,
         context=payload.context or {},
         media_url=payload.media_url,
@@ -302,7 +340,7 @@ def create_answer(
     db.add(answer)
     db.commit()
     db.refresh(answer)
-    logger.info("Answer created %s on question %s", answer.id, question.id)
+    logger.info("Answer created %s on question %s by %s", answer.id, question.id, user.email)
     return answer
 
 

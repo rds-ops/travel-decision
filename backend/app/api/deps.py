@@ -1,13 +1,13 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.db import SessionLocal
 from app.core.security import verify_access_token
 from app.models.models import User
 
-
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/verify-otp")
+# Define the scheme BEFORE using it
+oauth2_scheme = HTTPBearer()
 
 
 def get_db():
@@ -18,8 +18,10 @@ def get_db():
         db.close()
 
 
-def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)) -> User:
+def get_current_user(db: Session = Depends(get_db), token_auth: HTTPBearer = Depends(oauth2_scheme)) -> User:
     try:
+        # HTTPBearer returns an object, the actual token is in .credentials
+        token = token_auth.credentials
         email = verify_access_token(token)
     except Exception as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from exc

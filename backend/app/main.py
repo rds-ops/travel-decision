@@ -18,3 +18,12 @@ app.add_middleware(
 )
 
 app.include_router(router)
+
+
+@app.get("/")
+def read_root():
+    return {
+        "message": "Welcome to the Travel Decision Platform API",
+        "docs_url": "/docs",
+        "status": "online"
+    }

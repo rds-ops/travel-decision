@@ -10,6 +10,7 @@ from sqlalchemy import (
     Text,
     JSON,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from app.core.db import Base
@@ -52,7 +53,7 @@ class UserProfile(Base):
         Enum(BudgetTier, values_callable=enum_values),
         default=BudgetTier.mid,
     )
-    cities_of_experience = Column(JSON, default=list)
+    cities_of_experience = Column(JSONB, default=list)
 
     user = relationship("User", back_populates="profile")
 
@@ -86,7 +87,7 @@ class Question(Base):
         Enum(BudgetTier, values_callable=enum_values),
         nullable=False,
     )
-    requirements = Column(JSON, default=list)
+    requirements = Column(JSONB, default=list)
     question_text = Column(Text, nullable=False)
     status = Column(
         Enum(QuestionStatus, values_callable=enum_values),
@@ -107,7 +108,7 @@ class Answer(Base):
     question_id = Column(Integer, ForeignKey("questions.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     answer_text = Column(Text, nullable=False)
-    context = Column(JSON, default=dict)
+    context = Column(JSONB, default=dict)
     media_url = Column(String(255))
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
@@ -164,12 +165,12 @@ class Card(Base):
         Enum(BudgetTier, values_callable=enum_values),
         nullable=False,
     )
-    requirements = Column(JSON, default=list)
+    requirements = Column(JSONB, default=list)
     season = Column(String(50))
     summary = Column(Text, nullable=False)
-    recommendations = Column(JSON, default=list)
-    risks = Column(JSON, default=list)
-    fit_for = Column(JSON, default=list)
+    recommendations = Column(JSONB, default=list)
+    risks = Column(JSONB, default=list)
+    fit_for = Column(JSONB, default=list)
     status = Column(
         Enum(CardStatus, values_callable=enum_values),
         default=CardStatus.draft,

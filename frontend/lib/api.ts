@@ -5,22 +5,14 @@
 const INTERNAL_API_URL = process.env.API_URL || "http://backend:8000";
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// Важно: когда Next запущен локально, INTERNAL_API_URL "http://backend:8000" не работает.
-// Поэтому для SSR тоже используем PUBLIC_API_URL, если INTERNAL указывает на backend и мы не в Docker.
-function resolveServerApiUrl() {
-  // если явно передали API_URL и он не "backend" — используем его
-  if (process.env.API_URL && !process.env.API_URL.includes("backend")) return process.env.API_URL;
-
-  // если API_URL не задан или равен backend:8000 — используем публичный
-  return PUBLIC_API_URL;
-}
-
-export const API_URL = typeof window === "undefined" ? resolveServerApiUrl() : PUBLIC_API_URL;
+export const API_URL = typeof window === "undefined" ? INTERNAL_API_URL : PUBLIC_API_URL;
 
 export async function fetcher<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_URL}${path}`);
+  const url = `${API_URL}${path}`;
+  console.log(`[Fetcher] Requesting: ${url}`);
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new Error(`Request failed: ${response.status} for ${url}`);
   }
   return response.json() as Promise<T>;
 }

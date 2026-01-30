@@ -1,0 +1,41 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+
+import { API_URL } from "../../lib/api";
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    // API Route for posting answers (Unauthenticated)
+    if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+
+    const { question_id, answer_text, email } = req.body;
+    const userEmail = email || "member@travel.dev"; // Default for MVP
+
+    if (!question_id || !answer_text) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+        // 2. Post Answer directly (unauthenticated, backend handles user resolution by email)
+        const postRes = await fetch(`${API_URL}/answers`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                question_id: Number(question_id),
+                answer_text,
+                email: userEmail
+            }),
+        });
+
+        if (!postRes.ok) {
+            const txt = await postRes.text();
+            return res.status(500).send(txt);
+        }
+
+        // Redirect back to question page
+        res.writeHead(302, { Location: `/questions/${question_id}` });
+        res.end();
+    } catch (e: any) {
+        return res.status(500).json({ error: e?.message || "fetch failed" });
+    }
+}
