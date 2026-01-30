@@ -10,8 +10,15 @@ from sqlalchemy import (
     Text,
     JSON,
 )
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
+
+# Для совместимости с SQLite: используем JSONB на Postgres, иначе обычный JSON
+from app.core.config import settings
+
+if settings.database_url.startswith("postgresql"):
+    from sqlalchemy.dialects.postgresql import JSONB
+else:
+    JSONB = JSON
 
 from app.core.db import Base
 from app.models.enums import (
