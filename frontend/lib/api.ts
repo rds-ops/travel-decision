@@ -1,7 +1,3 @@
-// Один источник правды для API:
-// 1) Если ты запускаешь Next внутри Docker -> API_URL будет из process.env.API_URL (http://backend:8000)
-// 2) Если ты запускаешь Next локально (npm run dev) -> API_URL будет из NEXT_PUBLIC_API_URL или localhost
-
 const INTERNAL_API_URL = process.env.API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api` : "http://backend:8000");
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
