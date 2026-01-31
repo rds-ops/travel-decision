@@ -1,0 +1,29 @@
+# Docker
+.dockerignore
+Dockerfile
+docker-compose.yml
+
+# Backend and API
+backend/
+api/
+venv/
+*.db
+alembic/
+alembic.ini
+seed.py
+
+# Frontend dependencies and builds
+node_modules
+.next
+out
+build
+
+# System/IDE
+.git
+.gitignore
+.vercel
+.gemini
+README.md
+run.bat
+start.ps1
+package-lock.json
