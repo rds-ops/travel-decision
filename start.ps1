@@ -73,12 +73,10 @@ if (-not $dockerRunning) {
 
 # 3. Setup Frontend
 Write-Host "[3/4] Installing frontend dependencies..." -ForegroundColor Yellow
-Set-Location frontend
 npm install
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to install frontend dependencies."
-    Set-Location ..
     exit $LASTEXITCODE
 }
 

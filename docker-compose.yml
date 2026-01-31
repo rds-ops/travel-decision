@@ -44,7 +44,8 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    build: .
+
     environment:
       # важно: внутри docker сети ходим на backend по имени сервиса
       API_URL: http://backend:8000
@@ -56,9 +57,12 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
+      - .:/app
       - /app/node_modules
       - /app/.next
+      - /app/backend
+      - /app/api
+
     restart: unless-stopped
 
 volumes:
