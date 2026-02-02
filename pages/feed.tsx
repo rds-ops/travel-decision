@@ -1,7 +1,7 @@
 import { GetServerSideProps } from "next";
 import Link from "next/link";
 import Layout from "../components/Layout";
-import { fetcher } from "../lib/api";
+import { fetcher } from "../lib/api-client";
 
 type FeedItem = {
   id: number;

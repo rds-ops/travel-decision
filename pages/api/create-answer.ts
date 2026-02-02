@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-import { API_URL } from "../../lib/api";
+import { API_URL } from "../../lib/api-client";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     // API Route for posting answers (Unauthenticated)

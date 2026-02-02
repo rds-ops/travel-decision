@@ -2,7 +2,7 @@ import { GetServerSideProps } from "next";
 
 import CardItem from "../../components/CardItem";
 import Layout from "../../components/Layout";
-import { API_URL } from "../../lib/api";
+import { API_URL } from "../../lib/api-client";
 
 interface Card {
   id: number;

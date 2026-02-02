@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/router";
 
 import Layout from "../../components/Layout";
-import { fetcher } from "../../lib/api";
+import { fetcher } from "../../lib/api-client";
 
 interface Answer {
   id: number;

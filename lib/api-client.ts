@@ -3,7 +3,7 @@ const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export const API_URL = typeof window === "undefined" ? INTERNAL_API_URL : PUBLIC_API_URL;
 
-const fetcher = async <T>(path: string): Promise<T> => {
+export const fetcher = async <T>(path: string): Promise<T> => {
   const url = `${API_URL}${path}`;
   console.log(`[Fetcher] Requesting: ${url}`);
   const response = await fetch(url);
@@ -13,6 +13,5 @@ const fetcher = async <T>(path: string): Promise<T> => {
   return response.json() as Promise<T>;
 };
 
-export { fetcher };
 
 

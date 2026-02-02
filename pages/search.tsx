@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 
 import CardItem from "../components/CardItem";
 import Layout from "../components/Layout";
-import { fetcher } from "../lib/api";
+import { fetcher } from "../lib/api-client";
 
 interface Card {
   id: number;
