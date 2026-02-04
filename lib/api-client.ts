@@ -1,4 +1,4 @@
-const INTERNAL_API_URL = process.env.API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api` : "http://backend:8000");
+const INTERNAL_API_URL = process.env.API_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/api/py` : "http://backend:8000");
 const PUBLIC_API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 export const API_URL = typeof window === "undefined" ? INTERNAL_API_URL : PUBLIC_API_URL;
