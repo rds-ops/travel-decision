@@ -131,10 +131,23 @@ export const getServerSideProps: GetServerSideProps = async ({ query }) => {
     }
   });
 
-  const [cards, cities, topics] = await Promise.all([
-    fetcher<Card[]>(`/search/cards?${params.toString()}`),
-    fetcher<City[]>("/cities"),
-    fetcher<Topic[]>("/topics")
-  ]);
-  return { props: { cards, cities, topics } };
+  try {
+    const [cards, cities, topics] = await Promise.all([
+      fetcher<Card[]>(`/search/cards?${params.toString()}`),
+      fetcher<City[]>("/cities"),
+      fetcher<Topic[]>("/topics")
+    ]);
+    return { props: { cards, cities, topics } };
+  } catch (error: any) {
+    console.error("Failed to fetch search data:", error);
+    // Return empty data instead of crashing, allowing the UI to render what it can or show an error state
+    return {
+      props: {
+        cards: [],
+        cities: [],
+        topics: [],
+        error: error.message || "Failed to load data"
+      }
+    };
+  }
 };

@@ -4,5 +4,10 @@
             "source": "/api/py/:path*",
             "destination": "/api/py/index.py"
         }
-    ]
+    ],
+    "functions": {
+        "api/py/index.py": {
+            "runtime": "python3.9"
+        }
+    }
 }
