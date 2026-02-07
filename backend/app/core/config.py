@@ -11,8 +11,15 @@ class Settings:
     environment: str = os.getenv("ENVIRONMENT", "development")
 
     def __post_init__(self):
+        # Fix deprecated postgres:// scheme for SQLAlchemy 2.0+
         if self.database_url and self.database_url.startswith("postgres://"):
             self.database_url = self.database_url.replace("postgres://", "postgresql://", 1)
+        
+        # Add SSL mode for PostgreSQL connections (required by Render)
+        if self.database_url and self.database_url.startswith("postgresql://"):
+            if "sslmode" not in self.database_url:
+                separator = "&" if "?" in self.database_url else "?"
+                self.database_url += f"{separator}sslmode=require"
 
 
 settings = Settings()
