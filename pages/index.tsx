@@ -1,6 +1,8 @@
 import { GetServerSideProps } from "next";
-import Link from "next/link";
+import { useState } from "react";
+import { useRouter } from "next/router";
 import Layout from "../components/Layout";
+import PostCard from "../components/PostCard";
 import { fetcher } from "../lib/api-client";
 
 type FeedItem = {
@@ -9,6 +11,8 @@ type FeedItem = {
   created_at: string | null;
   last_message_at: string | null;
   author: { id: number; display_name: string };
+  answer_count?: number;
+  vote_score?: number;
 };
 
 type FeedProps = {
@@ -16,64 +20,87 @@ type FeedProps = {
 };
 
 export default function Home({ items }: FeedProps) {
+  const router = useRouter();
+  const [sort, setSort] = useState<"latest" | "hot">("latest");
+
   return (
     <Layout>
-      <section className="space-y-6">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold text-ink">Feed</h1>
-          <p className="text-sm text-slate-600">Latest public threads and discussions.</p>
-        </div>
+      {/* ── Sort tabs ─────────────────────────── */}
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-2">
+        <button
+          onClick={() => setSort("hot")}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold transition-colors ${sort === "hot"
+              ? "bg-hover-light dark:bg-hover-dark text-ink dark:text-gray-100"
+              : "text-muted-light dark:text-muted-dark hover:bg-hover-light dark:hover:bg-hover-dark"
+            }`}
+        >
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" />
+          </svg>
+          Hot
+        </button>
+        <button
+          onClick={() => setSort("latest")}
+          className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-bold transition-colors ${sort === "latest"
+              ? "bg-hover-light dark:bg-hover-dark text-ink dark:text-gray-100"
+              : "text-muted-light dark:text-muted-dark hover:bg-hover-light dark:hover:bg-hover-dark"
+            }`}
+        >
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+          </svg>
+          New
+        </button>
+      </div>
 
-        <div className="space-y-3">
-          <form
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-            method="post"
-            action="/api/create-thread"
-          >
-            <div className="text-sm font-semibold text-ink">Create a thread</div>
+      {/* ── Create post ────────────────────────── */}
+      <form
+        method="post"
+        action="/api/create-thread"
+        className="mb-3 flex items-center gap-3 rounded-md border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-2"
+      >
+        {/* Avatar placeholder */}
+        <div className="w-8 h-8 rounded-full bg-hover-light dark:bg-hover-dark border border-border-light dark:border-border-dark flex-shrink-0" />
 
-            <textarea
-              name="question_text"
-              className="mt-2 w-full rounded-lg border border-slate-200 p-2 text-sm"
-              rows={3}
-              placeholder="Example: Where should I stay for a 2-month remote work stint?"
-              required
-            />
+        <input
+          type="text"
+          name="question_text"
+          placeholder="Create Post"
+          required
+          className="flex-1 rounded-md border border-border-light dark:border-border-dark bg-hover-light dark:bg-hover-dark px-3 py-1.5 text-sm text-ink dark:text-gray-200 placeholder:text-muted-light dark:placeholder:text-muted-dark focus:border-accent-blue focus:outline-none transition-colors"
+        />
 
-            <button
-              type="submit"
-              className="mt-3 inline-flex items-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white"
-            >
-              Post
-            </button>
-          </form>
+        <button
+          type="submit"
+          className="rounded-full bg-accent px-4 py-1.5 text-sm font-bold text-white hover:brightness-110 transition-all active:scale-95"
+        >
+          Post
+        </button>
+      </form>
 
-          {items.map((t) => (
-            <Link
-              key={t.id}
-              href={`/questions/${t.id}`}
-              className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-base font-semibold text-ink">{t.title}</div>
-                  <div className="mt-1 text-xs text-slate-500">by {t.author.display_name}</div>
-                </div>
+      {/* ── Posts list ──────────────────────────── */}
+      <div className="space-y-2">
+        {items.map((item) => (
+          <PostCard
+            key={item.id}
+            id={item.id}
+            title={item.title}
+            authorName={item.author.display_name}
+            createdAt={item.created_at}
+            lastMessageAt={item.last_message_at}
+            answerCount={item.answer_count ?? 0}
+            voteScore={item.vote_score ?? 0}
+          />
+        ))}
 
-                <div className="shrink-0 text-right text-xs text-slate-500">
-                  <div>Last: {t.last_message_at ? new Date(t.last_message_at).toLocaleString() : "—"}</div>
-                </div>
-              </div>
-            </Link>
-          ))}
-
-          {items.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 text-sm text-slate-600">
-              Пока пусто. Создай первый тред сверху.
-            </div>
-          ) : null}
-        </div>
-      </section>
+        {items.length === 0 && (
+          <div className="rounded-md border border-border-light dark:border-border-dark bg-card-light dark:bg-card-dark p-8 text-center">
+            <p className="text-muted-light dark:text-muted-dark text-sm">
+              No posts yet. Be the first to create a thread!
+            </p>
+          </div>
+        )}
+      </div>
     </Layout>
   );
 }
