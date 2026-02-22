@@ -1,98 +1,36 @@
-# Travel Decision Platform (MVP)
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Mobile-first MVP for relocation / long stays (1–3 months). The flow is Q&A → Experience Cards → Scenario Search.
+## Getting Started
 
-## Stack
-- Backend: FastAPI + SQLAlchemy + Alembic
-- Frontend: Next.js + TypeScript + Tailwind
-- Database: PostgreSQL
+First, run the development server:
 
-## Local setup (Docker + Local Frontend)
-
-## Local setup
-
-The easiest way to start on Windows:
-1. Double-click **`run.bat`** (or run `./run.bat` in terminal).
-2. Alternatively, run `./start.ps1` (may require `Set-ExecutionPolicy`).
-
-This script is intelligent:
-1. **With Docker**: If Docker Desktop is running, it starts PostgreSQL and the Backend inside Docker.
-2. **Without Docker**: If Docker is NOT running, it sets up a local Python virtual environment and uses **SQLite** for the database.
-3. In both cases, it installs frontend dependencies and starts the Frontend locally.
-
-### 1. Backend & DB (Docker)
 ```bash
-docker compose up -d db backend
-```
-
-### 2. Frontend (Local)
-```bash
-cd frontend
-npm install
 npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-Services:
-- Frontend: http://localhost:3000
-- Backend API + docs: http://localhost:8000/docs
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-## Environment variables
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-Backend:
-- `DATABASE_URL` (default: `postgresql+psycopg2://postgres:postgres@db:5432/travel_decision`)
-- `SECRET_KEY` (JWT signing)
-- `ACCESS_TOKEN_EXPIRE_MINUTES` (default: 10080)
-- `OTP_EXPIRE_MINUTES` (default: 15)
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-Frontend:
-- `NEXT_PUBLIC_API_URL` (default: `http://localhost:8000`)
+## Learn More
 
-## Seed data
-On container startup, Alembic migrations run and seed data is inserted:
-- Cities: Tbilisi, Istanbul, Dubai, Bangkok, Bali
-- Topics: Areas, Housing, Internet/Work, Safety, Transport, Documents, Cost of Living
-- Sample admin user: `admin@travel.dev`
-- Sample member user: `member@travel.dev`
+To learn more about Next.js, take a look at the following resources:
 
-## API quick start
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-### Request OTP
-```bash
-curl -X POST http://localhost:8000/auth/request-otp \
-  -H "Content-Type: application/json" \
-  -d '{"email":"member@travel.dev"}'
-```
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-### Verify OTP (dev returns code directly)
-```bash
-curl -X POST http://localhost:8000/auth/verify-otp \
-  -H "Content-Type: application/json" \
-  -d '{"email":"member@travel.dev","code":"123456"}'
-```
+## Deploy on Vercel
 
-### Create a question
-```bash
-curl -X POST http://localhost:8000/questions \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "city_id": 1,
-    "topic_id": 2,
-    "duration": "2 months",
-    "budget_tier": "mid",
-    "requirements": ["quiet", "good_internet"],
-    "question_text": "Looking for a quiet area near cafes and co-working."
-  }'
-```
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-### Generate draft summary card
-```bash
-curl -X POST http://localhost:8000/questions/1/generate-summary \
-  -H "Authorization: Bearer <TOKEN>"
-```
-
-## Folder structure
-```
-backend/   # FastAPI + Alembic + seed data
-frontend/  # Next.js + Tailwind UI
-```
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
